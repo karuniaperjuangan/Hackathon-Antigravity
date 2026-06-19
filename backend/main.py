@@ -120,6 +120,20 @@ def update_biometrics(
     return current_user
 
 
+@app.post("/api/vision/estimate-biometrics")
+async def estimate_biometrics_endpoint(
+    file: UploadFile = File(...),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Estimate user biometrics (height, weight, age, gender, goal) from an uploaded image to autofill forms."""
+    try:
+        contents = await file.read()
+        analysis = AIService.estimate_biometrics_from_photo(contents)
+        return analysis
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Biometrics estimation failed: {str(e)}")
+
+
 # --- VISION AI ENDPOINTS ---
 
 @app.post("/api/vision/equipment")

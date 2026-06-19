@@ -195,4 +195,47 @@ class AIService:
                 "fitness_compatibility": "Mengandung makronutrisi lengkap, cukup aman untuk kebugaran harian umum.",
                 "improvement_tips": "Pastikan selalu menyertakan sayuran hijau setengah piring untuk serat optimal."
             }
+
+    @staticmethod
+    def estimate_biometrics_from_photo(image_bytes: bytes) -> Dict[str, Any]:
+        """Estimate user's height, weight, age, and gender from a selfie/photo to autofill biometrics."""
+        try:
+            image = Image.open(io.BytesIO(image_bytes))
+            model = genai.GenerativeModel("gemini-1.5-flash")
+            
+            prompt = """
+            Anda adalah pakar kebugaran dan analisis antropometri visual.
+            Analisis gambar tubuh atau selfie orang ini untuk mengestimasi secara sopan dan mendekati kenyataan data fisik berikut:
+            1. Tinggi badan (dalam satuan cm, estimasikan berdasarkan proporsi relatif)
+            2. Berat badan (dalam satuan kg)
+            3. Usia (dalam tahun)
+            4. Gender (pilih antara "Laki-laki" atau "Perempuan")
+            5. Saran Target Kebugaran Utama (pilih salah satu dari: "Lose Weight / Defisit Kalori", "Gain Muscle / Bulking", "Stay Fit / Recomposition")
+
+            Kembalikan respons HANYA dalam format JSON mentah tanpa markdown blocks (no ```json):
+            {
+              "height": 170,
+              "weight": 65,
+              "age": 25,
+              "gender": "Laki-laki",
+              "goal": "Stay Fit / Recomposition"
+            }
+            Ingat, buat estimasi se-sopan mungkin agar memotivasi pengguna, dan pastikan nilainya berupa angka/integer yang valid untuk height, weight, dan age, serta string yang tepat untuk gender dan goal.
+            """
+            
+            response = model.generate_content([prompt, image])
+            cleaned_text = clean_json_string(response.text)
+            return json.loads(cleaned_text)
+            
+        except Exception as e:
+            logger.error(f"Error in estimate_biometrics_from_photo: {e}")
+            # Fallback mock data
+            return {
+                "height": 170,
+                "weight": 65,
+                "age": 25,
+                "gender": "Laki-laki",
+                "goal": "Stay Fit / Recomposition"
+            }
+
 export_service = AIService

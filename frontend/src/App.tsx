@@ -53,6 +53,149 @@ export default function App() {
   const [foodPreview, setFoodPreview] = useState<string | null>(null);
   const [foodResult, setFoodResult] = useState<any>(null);
 
+  // Webcam Feature States & Actions
+  const [isWebcamOpen, setIsWebcamOpen] = useState(false);
+  const [webcamTarget, setWebcamTarget] = useState<'gym' | 'body' | 'food' | 'biometrics' | null>(null);
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  const triggerWebcam = (target: 'gym' | 'body' | 'food' | 'biometrics') => {
+    setWebcamTarget(target);
+    setIsWebcamOpen(true);
+  };
+
+  const closeWebcam = () => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+    }
+    setCameraStream(null);
+    setIsWebcamOpen(false);
+    setWebcamTarget(null);
+  };
+
+  const toggleFacingMode = () => {
+    setFacingMode(prev => prev === 'user' ? 'environment' : 'user');
+  };
+
+  const handleEstimateBiometrics = async (file: File) => {
+    try {
+      setLoading(true);
+      showToast("Sedang menganalisis fisik Anda untuk autofill biometrik...", "success");
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const res = await fetch(`${API_BASE}/api/vision/estimate-biometrics`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      });
+      
+      if (!res.ok) throw new Error("Gagal mengestimasi biometrik dari foto");
+      
+      const data = await res.json();
+      
+      if (data.height) setHeight(data.height.toString());
+      if (data.weight) setWeight(data.weight.toString());
+      if (data.age) setAge(data.age.toString());
+      if (data.gender) setGender(data.gender);
+      if (data.goal) setGoal(data.goal);
+      
+      showToast("Biometrik berhasil diisi otomatis oleh AI!", "success");
+    } catch (err: any) {
+      console.error(err);
+      showToast(err.message, "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const captureWebcamPhoto = () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        // Use natural video dimensions
+        canvas.width = video.videoWidth || 1280;
+        canvas.height = video.videoHeight || 720;
+        
+        ctx.save();
+        if (facingMode === 'user') {
+          // Mirror horizontal for natural front cam shot
+          ctx.translate(canvas.width, 0);
+          ctx.scale(-1, 1);
+        }
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        ctx.restore();
+        
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const file = new File([blob], `webcam_${Date.now()}.jpg`, { type: 'image/jpeg' });
+            const previewUrl = URL.createObjectURL(file);
+            
+            if (webcamTarget === 'gym') {
+              setGymFile(file);
+              setGymPreview(previewUrl);
+              setGymPreviewResult(null);
+            } else if (webcamTarget === 'body') {
+              setBodyFile(file);
+              setBodyPreview(previewUrl);
+              setBodyResult(null);
+            } else if (webcamTarget === 'food') {
+              setFoodFile(file);
+              setFoodPreview(previewUrl);
+              setFoodResult(null);
+            } else if (webcamTarget === 'biometrics') {
+              handleEstimateBiometrics(file);
+            }
+            
+            showToast("Foto berhasil diambil dari webcam!", "success");
+            closeWebcam();
+          }
+        }, 'image/jpeg', 0.95);
+      }
+    }
+  };
+
+  useEffect(() => {
+    let activeStream: MediaStream | null = null;
+    const startCam = async () => {
+      if (isWebcamOpen) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: { 
+              facingMode: facingMode, 
+              width: { ideal: 1280 }, 
+              height: { ideal: 720 } 
+            },
+            audio: false
+          });
+          activeStream = stream;
+          setCameraStream(stream);
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+            videoRef.current.play().catch(e => console.log("Play interrupted", e));
+          }
+        } catch (err) {
+          console.error("Gagal membuka kamera:", err);
+          showToast("Gagal mengakses kamera. Pastikan izin kamera diberikan.", "error");
+          setIsWebcamOpen(false);
+        }
+      }
+    };
+    
+    startCam();
+    
+    return () => {
+      if (activeStream) {
+        activeStream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [isWebcamOpen, facingMode]);
+
   // Notification Toast state
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
@@ -714,25 +857,36 @@ export default function App() {
                       </div>
                     </div>
                   ) : (
-                    <label class="cursor-pointer text-center flex flex-col items-center">
-                      <div class="w-12 h-12 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-volt mb-4">
-                        <Camera class="w-6 h-6" />
+                    <div class="flex flex-col items-center justify-center py-4 w-full">
+                      <div class="flex gap-4 w-full max-w-xs mb-4">
+                        <button
+                          type="button"
+                          onClick={() => triggerWebcam('gym')}
+                          class="flex-1 flex flex-col items-center justify-center py-5 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 hover:border-volt/40 rounded-2xl transition-all group cursor-pointer"
+                        >
+                          <Camera class="w-7 h-7 text-volt mb-2 group-hover:scale-110 transition-transform duration-250" />
+                          <span class="text-xs font-bold text-white">Webcam</span>
+                        </button>
+                        
+                        <label class="flex-1 flex flex-col items-center justify-center py-5 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 hover:border-volt/40 rounded-2xl cursor-pointer transition-all group">
+                          <Plus class="w-7 h-7 text-volt mb-2 group-hover:scale-110 transition-transform duration-250" />
+                          <span class="text-xs font-bold text-white">Unggah Berkas</span>
+                          <input 
+                            type="file" 
+                            accept="image/*" 
+                            onChange={e => {
+                              if (e.target.files && e.target.files[0]) {
+                                const file = e.target.files[0];
+                                setGymFile(file);
+                                setGymPreview(URL.createObjectURL(file));
+                              }
+                            }}
+                            class="hidden" 
+                          />
+                        </label>
                       </div>
-                      <span class="text-sm font-bold text-white">Ambil Foto / Pilih Berkas</span>
-                      <span class="text-xs text-zinc-500 mt-1">Format JPG, PNG (Kompres otomatis untuk mobile)</span>
-                      <input 
-                        type="file" 
-                        accept="image/*" 
-                        onChange={e => {
-                          if (e.target.files && e.target.files[0]) {
-                            const file = e.target.files[0];
-                            setGymFile(file);
-                            setGymPreview(URL.createObjectURL(file));
-                          }
-                        }}
-                        class="hidden" 
-                      />
-                    </label>
+                      <span class="text-[10px] text-zinc-500 font-medium">Format JPG, PNG (Ambil lewat webcam atau pilih dari galeri)</span>
+                    </div>
                   )}
                 </div>
               </div>
@@ -936,25 +1090,36 @@ export default function App() {
                       </div>
                     </div>
                   ) : (
-                    <label class="cursor-pointer text-center flex flex-col items-center">
-                      <div class="w-12 h-12 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-volt mb-4">
-                        <Camera class="w-6 h-6" />
+                    <div class="flex flex-col items-center justify-center py-4 w-full">
+                      <div class="flex gap-4 w-full max-w-xs mb-4">
+                        <button
+                          type="button"
+                          onClick={() => triggerWebcam('body')}
+                          class="flex-1 flex flex-col items-center justify-center py-5 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 hover:border-volt/40 rounded-2xl transition-all group cursor-pointer"
+                        >
+                          <Camera class="w-7 h-7 text-volt mb-2 group-hover:scale-110 transition-transform duration-250" />
+                          <span class="text-xs font-bold text-white">Ambil Selfie</span>
+                        </button>
+                        
+                        <label class="flex-1 flex flex-col items-center justify-center py-5 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 hover:border-volt/40 rounded-2xl cursor-pointer transition-all group">
+                          <Plus class="w-7 h-7 text-volt mb-2 group-hover:scale-110 transition-transform duration-250" />
+                          <span class="text-xs font-bold text-white">Unggah Berkas</span>
+                          <input 
+                            type="file" 
+                            accept="image/*" 
+                            onChange={e => {
+                              if (e.target.files && e.target.files[0]) {
+                                const file = e.target.files[0];
+                                setBodyFile(file);
+                                setBodyPreview(URL.createObjectURL(file));
+                              }
+                            }}
+                            class="hidden" 
+                          />
+                        </label>
                       </div>
-                      <span class="text-sm font-bold text-white">Foto Seluruh Badan</span>
-                      <span class="text-xs text-zinc-500 mt-1">Gunakan pakaian fit-wear agar analisis visual tubuh akurat</span>
-                      <input 
-                        type="file" 
-                        accept="image/*" 
-                        onChange={e => {
-                          if (e.target.files && e.target.files[0]) {
-                            const file = e.target.files[0];
-                            setBodyFile(file);
-                            setBodyPreview(URL.createObjectURL(file));
-                          }
-                        }}
-                        class="hidden" 
-                      />
-                    </label>
+                      <span class="text-[10px] text-zinc-500 font-medium">Gunakan pakaian fit-wear agar analisis visual tubuh akurat</span>
+                    </div>
                   )}
                 </div>
               </div>
@@ -1051,25 +1216,36 @@ export default function App() {
                       </div>
                     </div>
                   ) : (
-                    <label class="cursor-pointer text-center flex flex-col items-center">
-                      <div class="w-12 h-12 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-volt mb-4">
-                        <Camera class="w-6 h-6" />
+                    <div class="flex flex-col items-center justify-center py-4 w-full">
+                      <div class="flex gap-4 w-full max-w-xs mb-4">
+                        <button
+                          type="button"
+                          onClick={() => triggerWebcam('food')}
+                          class="flex-1 flex flex-col items-center justify-center py-5 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 hover:border-volt/40 rounded-2xl transition-all group cursor-pointer"
+                        >
+                          <Camera class="w-7 h-7 text-volt mb-2 group-hover:scale-110 transition-transform duration-250" />
+                          <span class="text-xs font-bold text-white">Ambil Foto</span>
+                        </button>
+                        
+                        <label class="flex-1 flex flex-col items-center justify-center py-5 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 hover:border-volt/40 rounded-2xl cursor-pointer transition-all group">
+                          <Plus class="w-7 h-7 text-volt mb-2 group-hover:scale-110 transition-transform duration-250" />
+                          <span class="text-xs font-bold text-white">Unggah Berkas</span>
+                          <input 
+                            type="file" 
+                            accept="image/*" 
+                            onChange={e => {
+                              if (e.target.files && e.target.files[0]) {
+                                const file = e.target.files[0];
+                                setFoodFile(file);
+                                setFoodPreview(URL.createObjectURL(file));
+                              }
+                            }}
+                            class="hidden" 
+                          />
+                        </label>
                       </div>
-                      <span class="text-sm font-bold text-white">Ambil Foto Piring Makan</span>
-                      <span class="text-xs text-zinc-500 mt-1">Arahkan tegak lurus dari atas piring makan</span>
-                      <input 
-                        type="file" 
-                        accept="image/*" 
-                        onChange={e => {
-                          if (e.target.files && e.target.files[0]) {
-                            const file = e.target.files[0];
-                            setFoodFile(file);
-                            setFoodPreview(URL.createObjectURL(file));
-                          }
-                        }}
-                        class="hidden" 
-                      />
-                    </label>
+                      <span class="text-[10px] text-zinc-500 font-medium">Arahkan tegak lurus dari atas piring makan untuk akurasi terbaik</span>
+                    </div>
                   )}
                 </div>
               </div>
@@ -1144,6 +1320,42 @@ export default function App() {
             </div>
 
             <form onSubmit={submitBiometrics} class="space-y-4">
+              {/* AI Autofill Section */}
+              <div class="bg-zinc-950/60 border border-zinc-800/80 rounded-2xl p-4 space-y-3 animate-fade-in">
+                <div class="flex items-center gap-2">
+                  <Sparkles class="w-4 h-4 text-volt" />
+                  <span class="text-xs font-black text-white uppercase tracking-wider">Isi Otomatis dengan AI</span>
+                </div>
+                <p class="text-[10px] text-zinc-400">Punya foto seluruh tubuh? Ambil foto baru atau unggah untuk memprediksi tinggi, berat, umur, gender, dan target Anda secara instan.</p>
+                
+                <div class="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => triggerWebcam('biometrics')}
+                    disabled={loading}
+                    class="flex-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-850 hover:border-volt/30 text-white font-bold py-2 px-3 rounded-xl text-[10px] transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    <Camera class="w-3.5 h-3.5 text-volt" />
+                    <span>Ambil Foto</span>
+                  </button>
+                  
+                  <label class="flex-1 bg-zinc-900 hover:bg-zinc-850 border border-zinc-850 hover:border-volt/30 text-white font-bold py-2 px-3 rounded-xl text-[10px] transition-all flex items-center justify-center gap-1.5 cursor-pointer hover:text-white">
+                    <Plus class="w-3.5 h-3.5 text-volt" />
+                    <span>Unggah File</span>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={e => {
+                        if (e.target.files && e.target.files[0]) {
+                          handleEstimateBiometrics(e.target.files[0]);
+                        }
+                      }}
+                      class="hidden" 
+                    />
+                  </label>
+                </div>
+              </div>
+
               <div class="grid grid-cols-2 gap-3">
                 <div>
                   <label class="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mb-1">Tinggi Badan (cm)</label>
@@ -1214,6 +1426,90 @@ export default function App() {
                 Simpan & Mulai Sinkronisasi
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Webcam Modal Overlay */}
+      {isWebcamOpen && (
+        <div class="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex flex-col items-center justify-center p-4">
+          <div class="bg-zinc-950 border border-zinc-800 rounded-3xl p-6 w-full max-w-lg space-y-6 relative overflow-hidden animate-fade-in flex flex-col items-center">
+            <div class="absolute -top-10 -right-10 w-32 h-32 bg-volt rounded-full filter blur-3xl opacity-10"></div>
+            
+            <div class="text-center w-full">
+              <span class="text-xs bg-volt/10 text-volt border border-volt/20 px-3 py-1 rounded-full font-bold uppercase tracking-wider">
+                {webcamTarget === 'gym' ? 'Scan Alat Gym' : webcamTarget === 'body' ? 'Sync Tubuh AI' : webcamTarget === 'biometrics' ? 'Autofill Biometrik' : 'Scan Makanan'}
+              </span>
+              <h3 class="text-xl font-black text-white mt-3 uppercase tracking-wide">
+                {webcamTarget === 'gym' ? 'Bidik Alat Gym' : webcamTarget === 'body' ? 'Ambil Foto Tubuh' : webcamTarget === 'biometrics' ? 'Ambil Foto Fisik' : 'Bidik Makanan Anda'}
+              </h3>
+              <p class="text-xs text-zinc-400 mt-1">
+                {webcamTarget === 'body' 
+                  ? 'Posisikan seluruh badan di tengah frame. Wajah Anda akan disamarkan secara otomatis demi privasi.'
+                  : webcamTarget === 'biometrics'
+                  ? 'Gunakan selfie seluruh tubuh atau bagian badan untuk estimasi tinggi/berat AI yang paling presisi.'
+                  : 'Pastikan objek terlihat jelas di bawah pencahayaan yang cukup.'
+                }
+              </p>
+            </div>
+
+            {/* Video Preview Frame */}
+            <div class="relative w-full aspect-[4/3] max-h-[60vh] rounded-2xl border border-zinc-800 overflow-hidden bg-zinc-900 flex items-center justify-center">
+              <video 
+                ref={videoRef}
+                autoPlay 
+                playsInline 
+                muted
+                style={{ transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}
+                class="w-full h-full object-cover"
+              />
+              
+              {/* Overlay Grid lines for guiding the user */}
+              <div class="absolute inset-0 pointer-events-none border border-dashed border-zinc-500/20 grid grid-cols-3 grid-rows-3">
+                <div class="border-b border-r border-dashed border-zinc-500/10"></div>
+                <div class="border-b border-r border-dashed border-zinc-500/10"></div>
+                <div class="border-b border-dashed border-zinc-500/10"></div>
+                <div class="border-b border-r border-dashed border-zinc-500/10"></div>
+                <div class="border-b border-r border-dashed border-zinc-500/10"></div>
+                <div class="border-b border-dashed border-zinc-500/10"></div>
+                <div class="border-r border-dashed border-zinc-500/10"></div>
+                <div class="border-r border-dashed border-zinc-500/10"></div>
+                <div></div>
+              </div>
+
+              {/* Facing mode toggle floating button */}
+              <button 
+                type="button"
+                onClick={toggleFacingMode}
+                class="absolute bottom-4 right-4 bg-black/80 hover:bg-zinc-850 border border-zinc-700 hover:border-volt text-white p-3 rounded-full transition-all duration-250 shadow-lg flex items-center justify-center cursor-pointer group active:scale-95"
+                title="Ganti Kamera"
+              >
+                <RefreshCw class="w-5 h-5 text-volt group-hover:rotate-180 transition-transform duration-500" />
+              </button>
+            </div>
+
+            {/* Capture controls */}
+            <div class="flex items-center justify-center gap-6 w-full">
+              <button 
+                type="button"
+                onClick={closeWebcam}
+                class="px-6 py-3 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-white font-bold rounded-xl text-xs transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+
+              <button 
+                type="button"
+                onClick={captureWebcamPhoto}
+                class="w-16 h-16 bg-volt hover:bg-volt-hover rounded-full flex items-center justify-center transition-all shadow-lg active:scale-90 relative group cursor-pointer animate-pulse"
+              >
+                <div class="absolute inset-1.5 border-2 border-black rounded-full group-hover:scale-95 transition-transform"></div>
+                <Camera class="w-6 h-6 text-black" />
+              </button>
+
+              {/* Just an invisible canvas for rendering frames */}
+              <canvas ref={canvasRef} class="hidden" />
+            </div>
           </div>
         </div>
       )}
