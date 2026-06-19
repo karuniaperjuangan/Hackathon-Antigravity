@@ -8,9 +8,9 @@ export default {
     extend: {
       colors: {
         volt: {
-          DEFAULT: '#CCFF00',
-          hover: '#B5E600',
-          muted: 'rgba(204, 255, 0, 0.1)',
+          DEFAULT: '#0066FF',
+          hover: '#0052CC',
+          muted: 'rgba(0, 102, 255, 0.1)',
         },
         slate: {
           950: '#09090B',

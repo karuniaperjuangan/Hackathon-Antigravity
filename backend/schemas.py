@@ -90,6 +90,7 @@ class BodyCompositionCreate(BaseModel):
     somatotype: str
     muscle_distribution_analysis: str
     recommended_workout_focus: str
+    astra_recommendations: Optional[str] = None
     cal_target: float
     protein_target: float
     carbs_target: float
@@ -101,6 +102,7 @@ class BodyCompositionResponse(BaseModel):
     somatotype: str
     muscle_distribution_analysis: str
     recommended_workout_focus: str
+    astra_recommendations: Optional[str] = None
     cal_target: float
     protein_target: float
     carbs_target: float

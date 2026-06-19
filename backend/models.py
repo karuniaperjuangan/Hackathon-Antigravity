@@ -71,6 +71,9 @@ class BodyComposition(Base):
     muscle_distribution_analysis = Column(Text, nullable=True)
     recommended_workout_focus = Column(Text, nullable=True)
     
+    # Astra Group personalized business integration
+    astra_recommendations = Column(Text, nullable=True)
+    
     # Daily Macronutrient Targets (Calculated by AI)
     cal_target = Column(Float, nullable=True)
     protein_target = Column(Float, nullable=True)

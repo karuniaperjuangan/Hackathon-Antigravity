@@ -1,6 +1,8 @@
-# 🏋️‍♂️ AuraFit AI - Personal Trainer Gym Assistant
+# 🏋️‍♂️ AstraFit AI - Personal Trainer Gym Assistant (Astra Group Health)
 
-> Asisten kebugaran/gym pintar berbasis **Multimodal Vision AI (Gemini 1.5/2.5 Flash)** yang dirancang khusus untuk mendampingi pemula (*gym beginners*) melewati sesi latihan perdana mereka di gym dengan percaya diri.
+> Asisten kebugaran/gym pintar berbasis **Multimodal Vision AI (Gemini-3-Flash / Vertex AI)** yang dirancang khusus dalam ekosistem **Astra Group** untuk mendampingi pemula (*gym beginners*) melewati sesi latihan perdana mereka dengan percaya diri, terintegrasi penuh dengan solusi proteksi, kesehatan, pembiayaan, dan mobilitas ramah lingkungan dari Astra Group.
+
+Aplikasi dikemas dalam **Skema Desain Biru Astra Group (Astra Blue `#0066FF`)** yang sangat premium, lengkap dengan **Layar Loading Animasi Catur Dharma Astra** yang berputar interaktif menyajikan 4 pilar dasar nilai Astra saat memproses gambar.
 
 Cetak biru arsitektur lengkap, spesifikasi fungsional, dan alur kerja aplikasi dapat dilihat di folder `docs/`.
 
@@ -60,7 +62,7 @@ npm install
 # Jalankan server pengembangan frontend
 npm run dev
 ```
-Aplikasi web AuraFit AI akan berjalan secara otomatis di **`http://localhost:5173`**.
+Aplikasi web AstraFit AI akan berjalan secara otomatis di **`http://localhost:5173`**.
 
 ---
 
@@ -83,7 +85,7 @@ Aplikasi web AuraFit AI akan berjalan secara otomatis di **`http://localhost:517
 │   │   ├── index.css          # Inisialisasi Tailwind & scrollbar premium
 │   │   └── App.tsx            # Halaman otentikasi & dashboard interaktif
 │   ├── package.json           # Dependensi pustaka frontend
-│   ├── tailwind.config.js     # Skema warna Sleek Nike-Athletic Volt Green
+│   ├── tailwind.config.js     # Skema warna Royal Astra Group Blue
 │   └── vite.config.ts         # Setel port & server lokal
 └── README.md                  # Panduan Memulai Cepat
 ```

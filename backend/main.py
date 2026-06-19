@@ -1,4 +1,5 @@
 import datetime
+import json
 from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
@@ -14,7 +15,7 @@ from ai_service import AIService
 # Create DB Tables if they do not exist
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="AuraFit AI Backend API", version="1.0.0")
+app = FastAPI(title="AstraFit AI Backend API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -53,7 +54,7 @@ def award_xp_and_update_streak(user: models.User, xp_to_add: int, db: Session):
 
 @app.get("/")
 def read_root():
-    return {"status": "AuraFit AI Backend is active and operational!"}
+    return {"status": "AstraFit AI Backend is active and operational!"}
 
 # --- AUTH ENDPOINTS ---
 
@@ -176,12 +177,16 @@ async def analyze_selfie_file(
         
         # Save analysis to database
         macros = analysis.get("macronutrient_targets", {})
+        astra_recs_list = analysis.get("astra_recommendations", [])
+        astra_recs_str = json.dumps(astra_recs_list) if astra_recs_list else "[]"
+        
         body_comp = models.BodyComposition(
             user_id=current_user.id,
             estimated_body_fat=analysis.get("estimated_body_fat", "Unknown"),
             somatotype=analysis.get("somatotype", "Unknown"),
             muscle_distribution_analysis=analysis.get("muscle_distribution_analysis", ""),
             recommended_workout_focus=analysis.get("recommended_workout_focus", ""),
+            astra_recommendations=astra_recs_str,
             cal_target=float(macros.get("calories", 2000)),
             protein_target=float(macros.get("protein", 120)),
             carbs_target=float(macros.get("carbs", 220)),
